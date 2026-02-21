@@ -272,6 +272,9 @@ class Head_Agent:
         self.answering_agent = Answering_Agent(self.client)
 
     def respond(self, user_message, conv_history=None):
+        """Returns (response_text, agent_path, source_passages).
+        source_passages is a list of strings (PDF chunks used for the answer), or None if no RAG was used (e.g. refused).
+        """
         conv_history = conv_history or []
         agent_path = []
         if self.obnoxious_agent is None:
@@ -279,30 +282,31 @@ class Head_Agent:
 
         if self.obnoxious_agent.check_query(user_message):
             agent_path.append("Obnoxious_Agent")
-            return REFUSE_OBNOXIOUS, " -> ".join(agent_path)
+            return REFUSE_OBNOXIOUS, " -> ".join(agent_path), None
 
         effective_query = self.context_rewriter.rephrase(conv_history, user_message)
         if not effective_query.strip():
-            return "Could you rephrase that?", "Context_Rewriter"
+            return "Could you rephrase that?", "Context_Rewriter", None
 
         if not self.query_agent.is_query_on_topic(effective_query):
             agent_path.append("Query_Agent(topic_check)")
-            return REFUSE_IRRELEVANT, " -> ".join(agent_path)
+            return REFUSE_IRRELEVANT, " -> ".join(agent_path), None
 
         docs = self.query_agent.query_vector_store(effective_query, k=5)
         agent_path.append("Query_Agent(retrieve)")
         if not docs:
-            return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path)
+            return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path), None
 
         rel = self.relevant_agent.get_relevance({"query": effective_query, "docs": docs})
         if rel != "Yes":
             agent_path.append("Relevant_Documents_Agent")
-            return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path)
+            return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path), None
 
         agent_path.append("Relevant_Documents_Agent")
         agent_path.append("Answering_Agent")
         answer = self.answering_agent.generate_response(effective_query, docs, conv_history, k=5)
-        return answer, " -> ".join(agent_path)
+        source_passages = [d.page_content for d in docs]
+        return answer, " -> ".join(agent_path), source_passages
 
     def main_loop(self):
         self.setup_sub_agents()
