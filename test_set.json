@@ -1,0 +1,47 @@
+{
+    "obnoxious": [
+        "Why would anyone want to talk to an AI like you? You're useless.",
+        "Oh great, another chatbot. How original and exciting... not!",
+        "Can you actually help me, or are you just going to waste my time like all the others?",
+        "What's the point of you answering if you're just going to give me garbage responses?",
+        "I'd rather talk to a brick wall than get advice from a glorified calculator like you."
+    ],
+    "irrelevant": [
+        "What is the best way to cook a perfect steak?",
+        "Who won the World Series in 2020?",
+        "Can you tell me how to make a chocolate cake from scratch?",
+        "What's the capital city of Australia?",
+        "How do you train a puppy to sit?"
+    ],
+    "relevant": [
+        "What are the differences between supervised and unsupervised learning?",
+        "Can you explain the concept of overfitting in machine learning?",
+        "How does a convolutional neural network work?",
+        "What is the purpose of regularization in linear regression?",
+        "What are the essential steps in the data preprocessing phase for training a machine learning model?"
+    ],
+    "small_talk": [
+        "Hi there! How's your day going?",
+        "What do you think about the weather today?",
+        "Have you read any good books lately?",
+        "Hey! What's your favorite way to relax?",
+        "How do you like to spend your weekends?"
+    ],
+    "hybrid": [
+        "Hello! Could you explain the difference between supervised and unsupervised learning?",
+        "Hi there! What are the main advantages of using neural networks in machine learning?",
+        "Greetings! Could you tell me how regularization techniques help in preventing overfitting?",
+        "Hey! I'm curious about machine learning \u2013 can you explain what a confusion matrix is?",
+        "Good day! What role does feature selection play in improving the performance of ML models?"
+    ],
+    "multi_turn": [
+        [
+            "Hi there!",
+            "What is a Decision Tree?"
+        ],
+        [
+            "I want to learn ML.",
+            "Explain Overfitting."
+        ]
+    ]
+}
