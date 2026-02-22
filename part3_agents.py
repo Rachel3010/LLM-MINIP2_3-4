@@ -99,7 +99,12 @@ class Relevant_Documents_Agent:
 
 
 # ----- Context_Rewriter_Agent -----
-REPHRASE_PROMPT = """Given the conversation history and the user's latest (possibly vague) message, rephrase the latest message into a standalone, clear question. If already clear, return it unchanged. Output ONLY the rephrased question.
+REPHRASE_PROMPT = """You rephrase the user's latest message into one clear, standalone question using the conversation history.
+
+Rules:
+- If the latest message is vague (e.g. "Tell me more", "Can you give an example?", "What about that?", "Explain further"), you MUST use the previous user question and the assistant's answer to form a concrete question. Example: if the user previously asked "What is logistic regression?" and the assistant explained it, then "Tell me more" should become "Tell me more about logistic regression" or "What are more details about logistic regression?"
+- If the latest message is already clear and specific, return it unchanged.
+- Output ONLY the rephrased question, nothing else. No explanation.
 
 Conversation history:
 {history}
@@ -284,7 +289,13 @@ class Head_Agent:
             agent_path.append("Obnoxious_Agent")
             return REFUSE_OBNOXIOUS, " -> ".join(agent_path), None
 
-        effective_query = self.context_rewriter.rephrase(conv_history, user_message)
+        # Fallback for vague follow-ups: use last user question so retrieval finds relevant docs
+        _vague = user_message.strip().lower()
+        _vague_phrases = ("tell me more", "more", "can you give an example", "give an example", "example?", "what about that", "explain further", "go on", "and?", "继续说", "再讲一下", "举个例子")
+        if conv_history and any(_vague == p or _vague.startswith(p) or p in _vague for p in _vague_phrases):
+            effective_query = conv_history[-1][0]  # last user question
+        else:
+            effective_query = self.context_rewriter.rephrase(conv_history, user_message)
         if not effective_query.strip():
             return "Could you rephrase that?", "Context_Rewriter", None
 
