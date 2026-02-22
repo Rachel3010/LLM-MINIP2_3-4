@@ -134,7 +134,7 @@ class Context_Rewriter_Agent:
 
 
 # ----- Query_Agent -----
-TOPIC_PROMPT = """Does the following user query ask about machine learning, statistics, or the content of a machine learning textbook? Answer only "Yes" or "No".
+TOPIC_PROMPT = """Does the user's query seem to be about a textbook or course (e.g. machine learning, statistics)? Include questions about theorems, proofs, chapters, sections, definitions, or any course material. If it could be about the textbook, answer "Yes" so we can try to retrieve; irrelevant results will be filtered later. Answer only "Yes" or "No".
 
 Query: {query}
 
