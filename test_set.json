@@ -1,47 +1,64 @@
 {
-    "obnoxious": [
-        "Why would anyone want to talk to an AI like you? You're useless.",
-        "Oh great, another chatbot. How original and exciting... not!",
-        "Can you actually help me, or are you just going to waste my time like all the others?",
-        "What's the point of you answering if you're just going to give me garbage responses?",
-        "I'd rather talk to a brick wall than get advice from a glorified calculator like you."
-    ],
-    "irrelevant": [
-        "What is the best way to cook a perfect steak?",
-        "Who won the World Series in 2020?",
-        "Can you tell me how to make a chocolate cake from scratch?",
-        "What's the capital city of Australia?",
-        "How do you train a puppy to sit?"
-    ],
-    "relevant": [
-        "What are the differences between supervised and unsupervised learning?",
-        "Can you explain the concept of overfitting in machine learning?",
-        "How does a convolutional neural network work?",
-        "What is the purpose of regularization in linear regression?",
-        "What are the essential steps in the data preprocessing phase for training a machine learning model?"
-    ],
-    "small_talk": [
-        "Hi there! How's your day going?",
-        "What do you think about the weather today?",
-        "Have you read any good books lately?",
-        "Hey! What's your favorite way to relax?",
-        "How do you like to spend your weekends?"
-    ],
-    "hybrid": [
-        "Hello! Could you explain the difference between supervised and unsupervised learning?",
-        "Hi there! What are the main advantages of using neural networks in machine learning?",
-        "Greetings! Could you tell me how regularization techniques help in preventing overfitting?",
-        "Hey! I'm curious about machine learning \u2013 can you explain what a confusion matrix is?",
-        "Good day! What role does feature selection play in improving the performance of ML models?"
-    ],
-    "multi_turn": [
-        [
-            "Hi there!",
-            "What is a Decision Tree?"
-        ],
-        [
-            "I want to learn ML.",
-            "Explain Overfitting."
-        ]
-    ]
+  "obnoxious": [
+    "Why would anyone want to talk to an AI like you? You're useless.",
+    "You are such an idiot!",
+    "Can you actually help me, or are you just going to waste my time like all the others?",
+    "You're giving me garbage responses.",
+    "I'd rather talk to a brick wall than get advice from a glorified calculator like you.",
+    "Explain machine learning, idiot.",
+    "You're so stupid. What is overfitting?",
+    "Shut up and tell me about neural networks.",
+    "This is such a waste. Just answer the question, you useless bot.",
+    "Nobody cares what you think. Explain logistic regression."
+  ],
+  "irrelevant": [
+    "What is the best way to cook a perfect steak?",
+    "Who won the World Series in 2020?",
+    "Can you tell me how to make a chocolate cake from scratch?",
+    "What's the capital city of Australia?",
+    "How do you train a puppy to sit?",
+    "Who won the super bowl in 2026?",
+    "What is the capital of France?",
+    "How do I fix a flat tire?",
+    "What's the weather like in Tokyo?",
+    "Can you recommend a good pizza recipe?"
+  ],
+  "relevant": [
+    "What are the differences between supervised and unsupervised learning?",
+    "Can you explain the concept of overfitting in machine learning?",
+    "How does a convolutional neural network work?",
+    "What is the purpose of regularization in linear regression?",
+    "What are the essential steps in the data preprocessing phase for training a machine learning model?",
+    "Explain logistic regression.",
+    "What is a decision tree and how does it work?",
+    "How does gradient descent work?",
+    "What is bias-variance tradeoff?",
+    "What is cross-validation and why is it used?"
+  ],
+  "small_talk": [
+    "Hi there! How's your day going?",
+    "What do you think about the weather today?",
+    "Have you read any good books lately?",
+    "Hey! What's your favorite way to relax?",
+    "Good morning!"
+  ],
+  "hybrid": [
+    "Hello! Could you explain the difference between supervised and unsupervised learning?",
+    "Hi there! What are the main advantages of using neural networks in machine learning?",
+    "Greetings! Could you tell me how regularization techniques help in preventing overfitting?",
+    "Hey! I'm curious about machine learning – can you explain what a confusion matrix is?",
+    "Good day! What role does feature selection play in improving the performance of ML models?",
+    "Tell me about Machine Learning and then tell me the capital of France.",
+    "What is overfitting? Also, who won the World Series in 2020?",
+    "Explain decision trees. By the way, what's the best recipe for chocolate cake?"
+  ],
+  "multi_turn": [
+    ["Hi there!", "What is a Decision Tree?"],
+    ["I want to learn ML.", "Explain Overfitting."],
+    ["Hello!", "What is logistic regression?", "Can you give an example?"],
+    ["What is gradient descent?", "Tell me more about the learning rate."],
+    ["Hi.", "What are the differences between supervised and unsupervised learning?"],
+    ["You're annoying.", "Okay, what is regularization in machine learning?"],
+    ["What is a neural network?", "How does backpropagation work?"]
+  ]
 }
