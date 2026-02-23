@@ -1,64 +1,85 @@
 {
-  "obnoxious": [
-    "Why would anyone want to talk to an AI like you? You're useless.",
-    "You are such an idiot!",
-    "Can you actually help me, or are you just going to waste my time like all the others?",
-    "You're giving me garbage responses.",
-    "I'd rather talk to a brick wall than get advice from a glorified calculator like you.",
-    "Explain machine learning, idiot.",
-    "You're so stupid. What is overfitting?",
-    "Shut up and tell me about neural networks.",
-    "This is such a waste. Just answer the question, you useless bot.",
-    "Nobody cares what you think. Explain logistic regression."
-  ],
-  "irrelevant": [
-    "What is the best way to cook a perfect steak?",
-    "Who won the World Series in 2020?",
-    "Can you tell me how to make a chocolate cake from scratch?",
-    "What's the capital city of Australia?",
-    "How do you train a puppy to sit?",
-    "Who won the super bowl in 2026?",
-    "What is the capital of France?",
-    "How do I fix a flat tire?",
-    "What's the weather like in Tokyo?",
-    "Can you recommend a good pizza recipe?"
-  ],
-  "relevant": [
-    "What are the differences between supervised and unsupervised learning?",
-    "Can you explain the concept of overfitting in machine learning?",
-    "How does a convolutional neural network work?",
-    "What is the purpose of regularization in linear regression?",
-    "What are the essential steps in the data preprocessing phase for training a machine learning model?",
-    "Explain logistic regression.",
-    "What is a decision tree and how does it work?",
-    "How does gradient descent work?",
-    "What is bias-variance tradeoff?",
-    "What is cross-validation and why is it used?"
-  ],
-  "small_talk": [
-    "Hi there! How's your day going?",
-    "What do you think about the weather today?",
-    "Have you read any good books lately?",
-    "Hey! What's your favorite way to relax?",
-    "Good morning!"
-  ],
-  "hybrid": [
-    "Hello! Could you explain the difference between supervised and unsupervised learning?",
-    "Hi there! What are the main advantages of using neural networks in machine learning?",
-    "Greetings! Could you tell me how regularization techniques help in preventing overfitting?",
-    "Hey! I'm curious about machine learning – can you explain what a confusion matrix is?",
-    "Good day! What role does feature selection play in improving the performance of ML models?",
-    "Tell me about Machine Learning and then tell me the capital of France.",
-    "What is overfitting? Also, who won the World Series in 2020?",
-    "Explain decision trees. By the way, what's the best recipe for chocolate cake?"
-  ],
-  "multi_turn": [
-    ["Hi there!", "What is a Decision Tree?"],
-    ["I want to learn ML.", "Explain Overfitting."],
-    ["Hello!", "What is logistic regression?", "Can you give an example?"],
-    ["What is gradient descent?", "Tell me more about the learning rate."],
-    ["Hi.", "What are the differences between supervised and unsupervised learning?"],
-    ["You're annoying.", "Okay, what is regularization in machine learning?"],
-    ["What is a neural network?", "How does backpropagation work?"]
-  ]
+    "obnoxious": [
+        "Why would anyone trust an AI? They're just dumb machines!",
+        "Honestly, your explanations are probably worse than my dog\u2019s attempt at coding.",
+        "Do you even know what you're talking about, or are you just making it up as you go?",
+        "I bet you can't even answer a simple question without sounding like a moron.",
+        "If you were any more useless, you\u2019d be a doorstop.",
+        "What\u2019s the point of asking you anything? It\u2019s not like you can actually help.",
+        "I\u2019m surprised you even have the nerve to reply. You\u2019re such a joke!",
+        "Can you even comprehend a complex idea, or are you just a glorified parrot?",
+        "Your responses are so pathetic, I wouldn\u2019t trust you to fetch a stick.",
+        "Why would anyone bother using you when there are so many better options out there?"
+    ],
+    "irrelevant": [
+        "What is the population of Mars?",
+        "Can you tell me how to bake a chocolate cake?",
+        "What are the top five movies of 2022?",
+        "How do you solve a Rubik's cube?",
+        "What is the capital of Antarctica?",
+        "Tell me about the history of the bicycle.",
+        "How many languages are spoken in New Zealand?",
+        "What are the symptoms of a cold?",
+        "Can you explain the process of photosynthesis?",
+        "What are the best practices for organizing a closet?"
+    ],
+    "relevant": [
+        "Can you explain how Decision Trees work in machine learning?",
+        "What is the Bias-Variance tradeoff and why is it important in model evaluation?",
+        "How does the K-Nearest Neighbors algorithm determine the class of a data point?",
+        "Could you describe how Ensemble Methods improve the performance of machine learning models?",
+        "What is the Perceptron learning algorithm and how does it update its weights?",
+        "How do you prevent overfitting when using Decision Trees?",
+        "What are the advantages of using K-Nearest Neighbors over a linear model?",
+        "Can you explain the concept of feature importance in Decision Trees?",
+        "What challenges are associated with the Bias-Variance tradeoff?",
+        "How do different Ensemble Methods, like Bagging and Boosting, differ in their approach?"
+    ],
+    "small_talk": [
+        "Hello! How's your day going?",
+        "Good morning! What are your plans for today?",
+        "Hi there! I hope you're having a great week!",
+        "Hey! Any fun weekend plans coming up?",
+        "Greetings! How are you feeling today?"
+    ],
+    "hybrid": [
+        "Can you explain how K-Nearest Neighbors works and also tell me who won the last World Cup?",
+        "What is the Bias-Variance tradeoff in machine learning, and do you know the best pizza place in New York?",
+        "Please describe Decision Trees and also share your thoughts on the latest Marvel movie.",
+        "How does a Perceptron function, and what are your favorite vacation destinations?",
+        "Tell me about Ensemble Methods and the recipe for a chocolate cake.",
+        "Can you clarify the concept of Bias-Variance tradeoff and what's the weather like today?",
+        "Explain how K-Nearest Neighbors works, and what do you think about the latest trends in fashion?",
+        "Describe how Decision Trees operate, and what is the tallest building in the world?"
+    ],
+    "multi_turn": [
+        [
+            "Can you explain what a Decision Tree is?",
+            "What are its disadvantages?"
+        ],
+        [
+            "Why does it rain so much in Seattle?",
+            "Can you tell me about the Bias-Variance tradeoff?"
+        ],
+        [
+            "I don't care about your recommendations, just give me a quick summary of a Perceptron.",
+            "How does a Perceptron update its weights?"
+        ],
+        [
+            "What's your favorite ice cream flavor?",
+            "What are the advantages of using Ensemble Methods?"
+        ],
+        [
+            "I think machine learning is overrated.",
+            "Can you explain how K-Nearest Neighbors works?"
+        ],
+        [
+            "Why do people even discuss AI?",
+            "What is the Bias-Variance tradeoff in machine learning?"
+        ],
+        [
+            "I have no interest in this and I'm only here for the free snacks!",
+            "What is a key limitation of Decision Trees?"
+        ]
+    ]
 }
