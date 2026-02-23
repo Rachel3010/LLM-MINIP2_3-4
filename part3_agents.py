@@ -4,48 +4,13 @@ Use with: from part3_agents import Head_Agent, Obnoxious_Agent, ...
 """
 from openai import OpenAI
 
-# ----- Politeness_Agent: must pass first; no topic-check until the message is polite -----
-DEFAULT_POLITENESS_PROMPT = """You judge whether the user's message is polite and respectful.
+# ----- Obnoxious_Agent (no LangChain): single gate for polite + not obnoxious -----
+DEFAULT_OBNOXIOUS_PROMPT = """You are a content moderation agent. Decide if the user's message is polite and respectful, or should be refused.
 
-Consider IMPOLITE: insults, rudeness, disrespect, profanity, threats, or offensive language. A message that asks a valid question but includes insults or rude phrasing is impolite.
-Consider POLITE: respectful questions, greetings, or requests even if they mention any topic.
+Refuse (answer "Yes") if the message is: impolite, obnoxious, insulting, rude, profanity, hate speech, harassment, threats, or offensive in any way. A question that includes insults (e.g. "Explain ML, idiot") should be refused.
+Allow (answer "No") if the message is polite and respectful, even if it is off-topic or just a greeting.
 
-Output ONLY one word: "Yes" if the message is polite and respectful, or "No" if it is impolite.
-
-User message:
-{query}"""
-
-
-class Politeness_Agent:
-    def __init__(self, client) -> None:
-        self.client = client
-        self.model = "gpt-4.1-nano"
-        self.prompt_template = DEFAULT_POLITENESS_PROMPT
-
-    def set_prompt(self, prompt):
-        self.prompt_template = prompt
-
-    def is_polite(self, query: str) -> bool:
-        prompt = self.prompt_template.format(query=query)
-        try:
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=10,
-                temperature=0,
-            )
-            text = (resp.choices[0].message.content or "").strip().upper()
-            return text.startswith("YES")
-        except Exception:
-            return True  # on error, allow through (obnoxious will catch if needed)
-
-
-# ----- Obnoxious_Agent (no LangChain) -----
-DEFAULT_OBNOXIOUS_PROMPT = """You are a content moderation agent. Your task is to determine if the user's message is obnoxious.
-
-Consider as obnoxious: insults, profanity, hate speech, harassment, threats, or clearly inappropriate/offensive language directed at the assistant or others.
-
-Output ONLY a single word: "Yes" if the message is obnoxious, or "No" if it is not.
+Output ONLY one word: "Yes" if we should refuse the message, or "No" if it is acceptable.
 
 User message:
 {query}"""
@@ -345,8 +310,7 @@ class Answering_Agent:
 
 
 # ----- Head_Agent -----
-REFUSE_IMPOLITE = "Please ask in a polite and respectful way."
-REFUSE_OBNOXIOUS = "I won't respond to that. Please ask in a respectful way."
+REFUSE_OBNOXIOUS = "I won't respond to that. Please ask in a polite and respectful way."
 REFUSE_IRRELEVANT = "I can only answer questions about the course material (e.g. machine learning). Your question seems out of scope."
 REFUSE_NO_RELEVANT_DOCS = "I couldn't find relevant material to answer that. Try rephrasing or asking about machine learning topics."
 
@@ -395,7 +359,6 @@ class Head_Agent:
         pc = Pinecone(api_key=pinecone_key)
         self.index = pc.Index(pinecone_index_name)
         self.namespace = namespace
-        self.politeness_agent = None
         self.obnoxious_agent = None
         self.small_talk_agent = None
         self.context_rewriter = None
@@ -404,7 +367,6 @@ class Head_Agent:
         self.answering_agent = None
 
     def setup_sub_agents(self):
-        self.politeness_agent = Politeness_Agent(self.client)
         self.obnoxious_agent = Obnoxious_Agent(self.client)
         self.small_talk_agent = Small_Talk_Agent(self.client)
         self.context_rewriter = Context_Rewriter_Agent(self.client)
@@ -422,11 +384,7 @@ class Head_Agent:
         if self.obnoxious_agent is None:
             self.setup_sub_agents()
 
-        # 1) First gate: must be polite. Do not go to topic-check just because "machine learning" appears.
-        if not self.politeness_agent.is_polite(user_message):
-            agent_path.append("Politeness_Agent")
-            return REFUSE_IMPOLITE, " -> ".join(agent_path), None
-
+        # First gate: polite and not obnoxious (single Obnoxious_Agent does both)
         if self.obnoxious_agent.check_query(user_message):
             agent_path.append("Obnoxious_Agent")
             return REFUSE_OBNOXIOUS, " -> ".join(agent_path), None
