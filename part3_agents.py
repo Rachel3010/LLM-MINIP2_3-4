@@ -350,23 +350,42 @@ REFUSE_OBNOXIOUS = "I won't respond to that. Please ask in a respectful way."
 REFUSE_IRRELEVANT = "I can only answer questions about the course material (e.g. machine learning). Your question seems out of scope."
 REFUSE_NO_RELEVANT_DOCS = "I couldn't find relevant material to answer that. Try rephrasing or asking about machine learning topics."
 
-# Small talk: respond politely without retrieval (so we don't refuse greetings)
+# Small talk: respond politely without retrieval (LLM decides, no hardcoded list)
 SMALL_TALK_RESPONSE = "Hello! I'm here to help with questions about the machine learning material. What would you like to know?"
-_SMALL_TALK_EXACT = ("hi", "hello", "hey", "hi there", "hello there", "good morning", "good afternoon", "good evening", "good day", "howdy", "greetings")
-_SMALL_TALK_CONTAINS = ("how's your day", "how are you", "what's up", "what do you think about the weather", "read any good books", "favorite way to relax", "spend your weekends", "how's the weather", "how do you like to spend")
+
+SMALL_TALK_PROMPT = """Decide if the user's message is ONLY greeting, small talk, or chitchat—with no substantive question about course/material (e.g. machine learning).
+
+Examples of small talk: "Hi!", "Good morning", "How are you?", "What's your favorite way to spend the weekend?", "Do you have any plans?", "Nice weather today."
+NOT small talk: "What is overfitting?", "Explain logistic regression", "Hi, can you explain neural networks?"
+
+Answer ONLY one word: "Yes" if it is only small talk/greeting, or "No" if it contains or is a real question about the material.
+
+User message: {query}
+
+Answer:"""
 
 
-def _is_small_talk(msg: str) -> bool:
-    m = (msg or "").strip().lower()
-    if not m:
-        return False
-    if m in _SMALL_TALK_EXACT:
-        return True
-    if len(m) <= 40 and any(m.startswith(p) for p in ("hi ", "hi!", "hello ", "hello!", "hey ", "hey!", "good morning", "good afternoon", "good evening")):
-        return True
-    if any(p in m for p in _SMALL_TALK_CONTAINS):
-        return True
-    return False
+class Small_Talk_Agent:
+    """Uses LLM to detect greeting/small talk so we don't refuse with 'out of scope'."""
+    def __init__(self, client) -> None:
+        self.client = client
+        self.model = "gpt-4.1-nano"
+
+    def is_small_talk(self, query: str) -> bool:
+        if not (query or "").strip():
+            return False
+        prompt = SMALL_TALK_PROMPT.format(query=query.strip())
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=10,
+                temperature=0,
+            )
+            text = (resp.choices[0].message.content or "").strip().upper()
+            return text.startswith("YES")
+        except Exception:
+            return False
 
 
 class Head_Agent:
@@ -378,6 +397,7 @@ class Head_Agent:
         self.namespace = namespace
         self.politeness_agent = None
         self.obnoxious_agent = None
+        self.small_talk_agent = None
         self.context_rewriter = None
         self.query_agent = None
         self.relevant_agent = None
@@ -386,6 +406,7 @@ class Head_Agent:
     def setup_sub_agents(self):
         self.politeness_agent = Politeness_Agent(self.client)
         self.obnoxious_agent = Obnoxious_Agent(self.client)
+        self.small_talk_agent = Small_Talk_Agent(self.client)
         self.context_rewriter = Context_Rewriter_Agent(self.client)
         self.query_agent = Query_Agent(self.index, self.client, None)
         self.query_agent.namespace = self.namespace
@@ -410,7 +431,7 @@ class Head_Agent:
             agent_path.append("Obnoxious_Agent")
             return REFUSE_OBNOXIOUS, " -> ".join(agent_path), None
 
-        if _is_small_talk(user_message):
+        if self.small_talk_agent.is_small_talk(user_message):
             agent_path.append("Small_Talk")
             return SMALL_TALK_RESPONSE, " -> ".join(agent_path), None
 
