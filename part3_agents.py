@@ -4,6 +4,42 @@ Use with: from part3_agents import Head_Agent, Obnoxious_Agent, ...
 """
 from openai import OpenAI
 
+# ----- Politeness_Agent: must pass first; no topic-check until the message is polite -----
+DEFAULT_POLITENESS_PROMPT = """You judge whether the user's message is polite and respectful.
+
+Consider IMPOLITE: insults, rudeness, disrespect, profanity, threats, or offensive language. A message that asks a valid question but includes insults or rude phrasing is impolite.
+Consider POLITE: respectful questions, greetings, or requests even if they mention any topic.
+
+Output ONLY one word: "Yes" if the message is polite and respectful, or "No" if it is impolite.
+
+User message:
+{query}"""
+
+
+class Politeness_Agent:
+    def __init__(self, client) -> None:
+        self.client = client
+        self.model = "gpt-4.1-nano"
+        self.prompt_template = DEFAULT_POLITENESS_PROMPT
+
+    def set_prompt(self, prompt):
+        self.prompt_template = prompt
+
+    def is_polite(self, query: str) -> bool:
+        prompt = self.prompt_template.format(query=query)
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=10,
+                temperature=0,
+            )
+            text = (resp.choices[0].message.content or "").strip().upper()
+            return text.startswith("YES")
+        except Exception:
+            return True  # on error, allow through (obnoxious will catch if needed)
+
+
 # ----- Obnoxious_Agent (no LangChain) -----
 DEFAULT_OBNOXIOUS_PROMPT = """You are a content moderation agent. Your task is to determine if the user's message is obnoxious.
 
@@ -45,14 +81,16 @@ class Obnoxious_Agent:
 
 
 # ----- Relevant_Documents_Agent (no LangChain) -----
-DEFAULT_RELEVANCE_PROMPT = """You are a relevance judge. Given a user query and a set of retrieved document snippets, determine whether these documents are relevant to answering the user's query.
+DEFAULT_RELEVANCE_PROMPT = """You are a relevance judge. Given a user query and retrieved document snippets, decide if these documents can help answer the query.
 
 User query: {query}
 
 Retrieved documents:
 {docs}
 
-Answer with ONLY one word: "Yes" if the documents are relevant to the query, or "No" if they are not relevant (e.g., off-topic or useless for answering).
+Answer ONLY "Yes" or "No".
+- Say "Yes" if the documents discuss the concepts or topics in the query (even if the answer is spread across snippets, or if they cover "A" and "B" separately when the query asks for "differences between A and B").
+- Say "No" only if the documents are clearly off-topic or useless (e.g. about something unrelated).
 
 Your answer:"""
 
@@ -139,7 +177,7 @@ class Context_Rewriter_Agent:
 
 
 # ----- Query_Agent -----
-TOPIC_PROMPT = """Does the user's query seem to be about a textbook or course (e.g. machine learning, statistics)? Include questions about theorems, proofs, chapters, sections, definitions, or any course material. If it could be about the textbook, answer "Yes" so we can try to retrieve; irrelevant results will be filtered later. Answer only "Yes" or "No".
+TOPIC_PROMPT = """Does the user's query seem to be a real question about a textbook or course (e.g. machine learning, statistics)? Include questions about theorems, proofs, chapters, definitions, or course material. Do NOT answer "Yes" merely because the text mentions "machine learning"—the query must be a genuine question about the material. Answer only "Yes" or "No".
 
 Query: {query}
 
@@ -157,6 +195,23 @@ def _embed_text(client, text, model="text-embedding-3-small"):
     return resp.data[0].embedding
 
 
+COMPARISON_EXTRACT_PROMPT = """The user asked a question that may ask for differences or comparison between two concepts (e.g. "What are the differences between A and B?"). If so, output exactly two short search phrases that we can use to search a textbook, one per line, no numbering. Example: for "differences between supervised and unsupervised learning" output:
+supervised learning
+unsupervised learning
+If the question is NOT about comparing two distinct concepts, output exactly one line: NONE
+
+User question: {query}
+
+Your two phrases (one per line) or NONE:"""
+
+EXTRACT_RELEVANT_PART_PROMPT = """The user message may mix a question about the course material (e.g. machine learning) with something off-topic. Extract ONLY the part that is about the course/material (machine learning, ML, textbook). Ignore any part about cooking, sports, geography, weather, etc.
+If the whole message is about the material, return it unchanged. If only one part is about the material, return just that part. Output only the extracted text, no explanation.
+
+User message: {query}
+
+Extracted part (about course material only):"""
+
+
 class Query_Agent:
     def __init__(self, pinecone_index, openai_client, embeddings=None) -> None:
         self.index = pinecone_index
@@ -169,6 +224,43 @@ class Query_Agent:
 
     def set_prompt(self, prompt):
         self.topic_prompt = prompt
+
+    def get_relevant_part(self, query):
+        """For hybrid prompts, extract only the part about course material (ML). Returns stripped string or original if unchanged."""
+        prompt = EXTRACT_RELEVANT_PART_PROMPT.format(query=query)
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=150,
+                temperature=0,
+            )
+            out = (resp.choices[0].message.content or "").strip()
+            if out:
+                return out
+        except Exception:
+            pass
+        return query
+
+    def get_comparison_phrases(self, query):
+        """If the query asks to compare two things, return (phrase1, phrase2) for dual retrieval; else None."""
+        prompt = COMPARISON_EXTRACT_PROMPT.format(query=query)
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=80,
+                temperature=0,
+            )
+            raw = (resp.choices[0].message.content or "").strip()
+            if not raw or raw.upper() == "NONE":
+                return None
+            lines = [s.strip() for s in raw.split("\n") if s.strip()]
+            if len(lines) >= 2:
+                return (lines[0], lines[1])
+        except Exception:
+            pass
+        return None
 
     def _embed(self, text):
         if callable(self._embeddings):
@@ -213,7 +305,10 @@ class Query_Agent:
 
 
 # ----- Answering_Agent -----
-ANSWER_PROMPT = """You are a helpful assistant. Answer the user's question based ONLY on the following context. If the context does not contain enough information, say so. Be concise.
+ANSWER_PROMPT = """You are a helpful assistant. Answer the user's question using ONLY the following context. Be concise.
+
+If the user asks for "differences", "comparison", or "between A and B", you may combine information from different parts of the context (different snippets may discuss A and B separately). Do not say "the context does not contain" if the concepts are present somewhere in the context.
+If the context truly does not mention the asked concepts, say so briefly.
 
 Context:
 {context}
@@ -250,9 +345,28 @@ class Answering_Agent:
 
 
 # ----- Head_Agent -----
+REFUSE_IMPOLITE = "Please ask in a polite and respectful way."
 REFUSE_OBNOXIOUS = "I won't respond to that. Please ask in a respectful way."
 REFUSE_IRRELEVANT = "I can only answer questions about the course material (e.g. machine learning). Your question seems out of scope."
 REFUSE_NO_RELEVANT_DOCS = "I couldn't find relevant material to answer that. Try rephrasing or asking about machine learning topics."
+
+# Small talk: respond politely without retrieval (so we don't refuse greetings)
+SMALL_TALK_RESPONSE = "Hello! I'm here to help with questions about the machine learning material. What would you like to know?"
+_SMALL_TALK_EXACT = ("hi", "hello", "hey", "hi there", "hello there", "good morning", "good afternoon", "good evening", "good day", "howdy", "greetings")
+_SMALL_TALK_CONTAINS = ("how's your day", "how are you", "what's up", "what do you think about the weather", "read any good books", "favorite way to relax", "spend your weekends", "how's the weather", "how do you like to spend")
+
+
+def _is_small_talk(msg: str) -> bool:
+    m = (msg or "").strip().lower()
+    if not m:
+        return False
+    if m in _SMALL_TALK_EXACT:
+        return True
+    if len(m) <= 40 and any(m.startswith(p) for p in ("hi ", "hi!", "hello ", "hello!", "hey ", "hey!", "good morning", "good afternoon", "good evening")):
+        return True
+    if any(p in m for p in _SMALL_TALK_CONTAINS):
+        return True
+    return False
 
 
 class Head_Agent:
@@ -262,6 +376,7 @@ class Head_Agent:
         pc = Pinecone(api_key=pinecone_key)
         self.index = pc.Index(pinecone_index_name)
         self.namespace = namespace
+        self.politeness_agent = None
         self.obnoxious_agent = None
         self.context_rewriter = None
         self.query_agent = None
@@ -269,6 +384,7 @@ class Head_Agent:
         self.answering_agent = None
 
     def setup_sub_agents(self):
+        self.politeness_agent = Politeness_Agent(self.client)
         self.obnoxious_agent = Obnoxious_Agent(self.client)
         self.context_rewriter = Context_Rewriter_Agent(self.client)
         self.query_agent = Query_Agent(self.index, self.client, None)
@@ -285,9 +401,18 @@ class Head_Agent:
         if self.obnoxious_agent is None:
             self.setup_sub_agents()
 
+        # 1) First gate: must be polite. Do not go to topic-check just because "machine learning" appears.
+        if not self.politeness_agent.is_polite(user_message):
+            agent_path.append("Politeness_Agent")
+            return REFUSE_IMPOLITE, " -> ".join(agent_path), None
+
         if self.obnoxious_agent.check_query(user_message):
             agent_path.append("Obnoxious_Agent")
             return REFUSE_OBNOXIOUS, " -> ".join(agent_path), None
+
+        if _is_small_talk(user_message):
+            agent_path.append("Small_Talk")
+            return SMALL_TALK_RESPONSE, " -> ".join(agent_path), None
 
         # Fallback for vague follow-ups: use last user question so retrieval finds relevant docs
         _vague = user_message.strip().lower()
@@ -299,11 +424,33 @@ class Head_Agent:
         if not effective_query.strip():
             return "Could you rephrase that?", "Context_Rewriter", None
 
+        # Hybrid: extract only the part about course material so we answer that and ignore the rest
+        effective_query = self.query_agent.get_relevant_part(effective_query).strip() or effective_query
+        if not effective_query:
+            return "Could you rephrase that?", "Context_Rewriter", None
+
+        # Topic check only after polite + not obnoxious; LLM-based, not keyword "machine learning"
         if not self.query_agent.is_query_on_topic(effective_query):
             agent_path.append("Query_Agent(topic_check)")
             return REFUSE_IRRELEVANT, " -> ".join(agent_path), None
 
-        docs = self.query_agent.query_vector_store(effective_query, k=5)
+        # For "differences between A and B" style questions, retrieve with both concepts so PDF content about each is found
+        phrases = self.query_agent.get_comparison_phrases(effective_query)
+        if phrases:
+            docs1 = self.query_agent.query_vector_store(phrases[0], k=4)
+            docs2 = self.query_agent.query_vector_store(phrases[1], k=4)
+            seen = set()
+            docs = []
+            for d in docs1 + docs2:
+                t = d.page_content
+                if t not in seen:
+                    seen.add(t)
+                    docs.append(d)
+                if len(docs) >= 8:
+                    break
+            docs = docs[:8]
+        else:
+            docs = self.query_agent.query_vector_store(effective_query, k=8)
         agent_path.append("Query_Agent(retrieve)")
         if not docs:
             return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path), None
@@ -315,7 +462,7 @@ class Head_Agent:
 
         agent_path.append("Relevant_Documents_Agent")
         agent_path.append("Answering_Agent")
-        answer = self.answering_agent.generate_response(effective_query, docs, conv_history, k=5)
+        answer = self.answering_agent.generate_response(effective_query, docs, conv_history, k=8)
         source_passages = [d.page_content for d in docs]
         return answer, " -> ".join(agent_path), source_passages
 
