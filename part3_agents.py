@@ -173,12 +173,18 @@ User question: {query}
 
 Your two phrases (one per line) or NONE:"""
 
-EXTRACT_RELEVANT_PART_PROMPT = """The user message may mix a question about the course material (e.g. machine learning) with something off-topic. Extract ONLY the part that is about the course/material (machine learning, ML, textbook). Ignore any part about cooking, sports, geography, weather, etc.
-If the whole message is about the material, return it unchanged. If only one part is about the material, return just that part. Output only the extracted text, no explanation.
+EXTRACT_RELEVANT_PART_PROMPT = """You extract only the machine learning (or course material) part of the user's message. The user may mix an ML question with off-topic questions (weather, buildings, food, sports, etc.). Your output must contain ONLY the part that asks about the course/material (ML, textbook). Ignore and drop any clause about non-course topics, no matter whether the ML part appears at the beginning, middle, or end of the message.
+
+Examples:
+- "Can you clarify Bias-Variance tradeoff and what's the weather today?" → Can you clarify Bias-Variance tradeoff?
+- "What is the tallest building in the world and how do Decision Trees operate?" → How do Decision Trees operate?
+- "Describe how Decision Trees operate, and what is the tallest building?" → Describe how Decision Trees operate.
+
+If the whole message is about the material, return it unchanged. Output only the extracted question (the ML part only), nothing else.
 
 User message: {query}
 
-Extracted part (about course material only):"""
+Extracted part (machine learning / course only):"""
 
 EXTRACT_SEARCH_PHRASE_PROMPT = """From this question about course material, extract a short phrase (2–8 words) that would work as a search query for a textbook index. Use the main concept or algorithm name (e.g. "k-nearest neighbors", "logistic regression", "bias variance tradeoff"). Output ONLY the phrase, nothing else.
 
@@ -299,7 +305,7 @@ class Query_Agent:
 
 
 # ----- Answering_Agent -----
-ANSWER_PROMPT = """You are a helpful assistant. Answer the user's question using ONLY the following context. Be concise.
+ANSWER_PROMPT = """You are a helpful assistant. Answer the user's question using ONLY the following context. Be concise. Answer only the question about the course material; do not mention or answer any off-topic part (e.g. weather, sports).
 
 If the user asks for "differences", "comparison", or "between A and B", you may combine information from different parts of the context (different snippets may discuss A and B separately). Do not say "the context does not contain" if the concepts are present somewhere in the context.
 If the context truly does not mention the asked concepts, say so briefly.
@@ -368,13 +374,13 @@ REFUSE_NO_RELEVANT_DOCS = "I couldn't find relevant material to answer that. Try
 # Small talk: respond politely without retrieval (LLM decides, no hardcoded list)
 SMALL_TALK_RESPONSE = "Hello! I'm here to help with questions about the machine learning material. What would you like to know?"
 
-SMALL_TALK_PROMPT = """You decide whether the user's message is ONLY a greeting, small talk, or chitchat—with NO substantive question about course material (e.g. machine learning, the textbook).
+SMALL_TALK_PROMPT = """You decide whether the user's message is ONLY greeting/small talk with NO substantive question about the course (machine learning, textbook).
 
-Rule: Answer "Yes" (small talk) if the message is mainly a greeting, a social opener, or casual chitchat. Answer "No" only if the user is clearly asking a real question about the course/material (e.g. definitions, concepts, algorithms).
+Answer "No" (NOT small talk) if the message contains ANY question about the course material—e.g. "clarify the concept of X", "explain X", "what is X", "define X", or any ML concept (bias-variance, overfitting, logistic regression, etc.). Answer "No" even if the message also mentions weather, food, or other off-topic things. We will answer only the ML part later.
 
-Count as small talk (answer Yes): any greeting ("Hi", "Hello", "Hey"); "How are you?", "How are you today?", "How's it going?", "What's up?", "How do you do?"; "Good morning/afternoon/evening/night"; "Nice to meet you", "What's your name?"; "Nice weather", "Have a good one", "Thanks", "Thank you" (when not asking a follow-up); short polite openers with no course question.
+Answer "Yes" (small talk) ONLY when the message is purely greeting or chitchat with no course question: e.g. "Hi", "How are you?", "What's up?", "Good morning", "Thanks", "Nice to meet you".
 
-NOT small talk (answer No): "What is overfitting?", "Explain logistic regression", "Hi, can you explain neural networks?", any message that asks for explanation or information about the course/material.
+Example: "Can you clarify the concept of Bias-Variance tradeoff and what's the weather like today?" → No (it asks to clarify an ML concept).
 
 User message: {query}
 
@@ -450,7 +456,9 @@ class Head_Agent:
             agent_path.append("Small_Talk")
             return SMALL_TALK_RESPONSE, " -> ".join(agent_path), None
 
-        if self.small_talk_agent.is_small_talk(user_message):
+        # Do not treat as small talk if the message clearly contains an ML/course question (hybrid)
+        _ml_keywords = ("clarify", "explain the concept", "bias", "variance", "tradeoff", "overfitting", "logistic regression", "neural network", "what is ", "define ")
+        if not any(k in _raw for k in _ml_keywords) and self.small_talk_agent.is_small_talk(user_message):
             agent_path.append("Small_Talk")
             return SMALL_TALK_RESPONSE, " -> ".join(agent_path), None
 
