@@ -1,0 +1,10 @@
+# Streamlit app + agents + evaluation
+streamlit>=1.28.0
+openai>=1.0.0
+pinecone-client>=3.0.0
+
+# PDF indexing (build_pinecone_index.py)
+pymupdf>=1.23.0
+
+# Optional: for part4_evaluation.py secrets fallback on Python < 3.11
+toml>=0.10.2
