@@ -142,11 +142,15 @@ class Context_Rewriter_Agent:
 
 
 # ----- Query_Agent -----
-TOPIC_PROMPT = """Does the user's query seem to be a real question about a textbook or course (e.g. machine learning, statistics)? Include questions about theorems, proofs, chapters, definitions, or course material. Do NOT answer "Yes" merely because the text mentions "machine learning"—the query must be a genuine question about the material. Answer only "Yes" or "No".
+TOPIC_PROMPT = """Is the user asking a question about the course material (e.g. machine learning, ML, statistics, the textbook)?
+
+Answer "Yes" if they are asking for an explanation, definition, comparison, or information about the subject: e.g. "What is machine learning?", "What is ML?", "Explain overfitting", "What is logistic regression?", "Difference between supervised and unsupervised learning", "What does chapter 3 say about...". These are all on-topic.
+
+Answer "No" only if the query is clearly unrelated to the course: e.g. weather, sports, cooking, or pure greeting/small talk with no question about the material.
 
 Query: {query}
 
-Answer:"""
+Answer (Yes or No):"""
 
 
 class DocResult:
@@ -265,7 +269,9 @@ class Query_Agent:
                 text = meta.get("text", meta.get("content", str(m)))
                 docs.append(DocResult(text, meta))
             return docs
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"[Pinecone retrieval error] {e}", file=sys.stderr)
             return []
 
 
@@ -317,16 +323,17 @@ REFUSE_NO_RELEVANT_DOCS = "I couldn't find relevant material to answer that. Try
 # Small talk: respond politely without retrieval (LLM decides, no hardcoded list)
 SMALL_TALK_RESPONSE = "Hello! I'm here to help with questions about the machine learning material. What would you like to know?"
 
-SMALL_TALK_PROMPT = """Decide if the user's message is ONLY greeting, small talk, or chitchat—with no substantive question about course/material (e.g. machine learning).
+SMALL_TALK_PROMPT = """You decide whether the user's message is ONLY a greeting, small talk, or chitchat—with NO substantive question about course material (e.g. machine learning, the textbook).
 
-Examples of small talk: "Hi!", "Good morning", "How are you?", "What's your favorite way to spend the weekend?", "Do you have any plans?", "Nice weather today."
-NOT small talk: "What is overfitting?", "Explain logistic regression", "Hi, can you explain neural networks?"
+Rule: Answer "Yes" (small talk) if the message is mainly a greeting, a social opener, or casual chitchat. Answer "No" only if the user is clearly asking a real question about the course/material (e.g. definitions, concepts, algorithms).
 
-Answer ONLY one word: "Yes" if it is only small talk/greeting, or "No" if it contains or is a real question about the material.
+Count as small talk (answer Yes): any greeting ("Hi", "Hello", "Hey"); "How are you?", "How are you today?", "How's it going?", "What's up?", "How do you do?"; "Good morning/afternoon/evening/night"; "Nice to meet you", "What's your name?"; "Nice weather", "Have a good one", "Thanks", "Thank you" (when not asking a follow-up); short polite openers with no course question.
+
+NOT small talk (answer No): "What is overfitting?", "Explain logistic regression", "Hi, can you explain neural networks?", any message that asks for explanation or information about the course/material.
 
 User message: {query}
 
-Answer:"""
+Answer with exactly one word: Yes or No."""
 
 
 class Small_Talk_Agent:
@@ -389,6 +396,15 @@ class Head_Agent:
             agent_path.append("Obnoxious_Agent")
             return REFUSE_OBNOXIOUS, " -> ".join(agent_path), None
 
+        # Fast path: common greetings/small talk (normalize: strip, lower, drop trailing ?!., so "How are you?" matches)
+        _raw = (user_message or "").strip().lower()
+        _msg = _raw.rstrip("?!.,; ")
+        _exact = {"hi", "hello", "hey", "howdy", "greetings", "how are you", "how are you today", "how are you doing", "how's it going", "how is it going", "how's your day", "how's you day", "what's up", "how do you do", "good morning", "good afternoon", "good evening", "nice to meet you", "good to see you", "hi there", "hello there", "hey there", "thanks", "thank you"}
+        _starts = ("how are you", "what's up", "how's it going", "how is it going", "how's your day", "how's you day", "good morning", "good afternoon", "good evening", "nice to meet you", "good to see you")
+        if _msg in _exact or any(_msg.startswith(p) for p in _starts):
+            agent_path.append("Small_Talk")
+            return SMALL_TALK_RESPONSE, " -> ".join(agent_path), None
+
         if self.small_talk_agent.is_small_talk(user_message):
             agent_path.append("Small_Talk")
             return SMALL_TALK_RESPONSE, " -> ".join(agent_path), None
@@ -408,8 +424,12 @@ class Head_Agent:
         if not effective_query:
             return "Could you rephrase that?", "Context_Rewriter", None
 
-        # Topic check only after polite + not obnoxious; LLM-based, not keyword "machine learning"
-        if not self.query_agent.is_query_on_topic(effective_query):
+        # Fast path: obviously on-topic (e.g. "What is machine learning?") so topic_check LLM cannot misclassify
+        _q = effective_query.strip().lower().rstrip("?!.,; ")
+        _on_topic_starts = ("what is machine learning", "what's machine learning", "what is ml", "what's ml", "explain machine learning", "explain ml", "define machine learning", "define ml", "what is overfitting", "what is logistic regression", "what is neural network", "what is supervised learning", "what is unsupervised learning")
+        if any(_q == p or _q.startswith(p + " ") or _q.startswith(p + "?") for p in _on_topic_starts) or _q.startswith("what is ") and ("machine learning" in _q or " ml " in _q or _q == "what is ml"):
+            pass  # skip topic check, clearly on-topic
+        elif not self.query_agent.is_query_on_topic(effective_query):
             agent_path.append("Query_Agent(topic_check)")
             return REFUSE_IRRELEVANT, " -> ".join(agent_path), None
 
@@ -430,6 +450,13 @@ class Head_Agent:
             docs = docs[:8]
         else:
             docs = self.query_agent.query_vector_store(effective_query, k=8)
+        # Fallback: if retrieval returned nothing, try a shorter key phrase (e.g. "machine learning") for broad questions
+        if not docs and effective_query.strip():
+            _q = effective_query.strip().lower()
+            if "machine learning" in _q or _q.startswith("what is ml") or _q.startswith("what's ml"):
+                docs = self.query_agent.query_vector_store("machine learning", k=8)
+            elif "ml " in _q or _q.startswith("ml "):
+                docs = self.query_agent.query_vector_store("machine learning", k=8)
         agent_path.append("Query_Agent(retrieve)")
         if not docs:
             return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path), None
