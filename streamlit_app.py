@@ -111,9 +111,13 @@ if prompt := st.chat_input("Ask about machine learning..."):
                 conv_history.append((u[1], a[1]))
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            response, path, sources = head.respond(prompt, conv_history)
+            response, path, sources = head.respond(prompt, conv_history, stream=True)
         st.markdown("**Assistant**")
-        st.markdown(response)
+        if hasattr(response, "__next__") and not isinstance(response, str):
+            response = st.write_stream(response) or ""
+        else:
+            st.markdown(response)
+        response = response if isinstance(response, str) else str(response or "")
         st.caption(f"Path: {path}")
         if sources:
             with st.expander("Source passages (from PDF)"):

@@ -46,7 +46,7 @@ class Obnoxious_Agent:
 
 
 # ----- Relevant_Documents_Agent (no LangChain) -----
-DEFAULT_RELEVANCE_PROMPT = """You are a relevance judge. Given a user query and retrieved document snippets, decide if these documents can help answer the query.
+DEFAULT_RELEVANCE_PROMPT = """You are a relevance judge. Given a user query and retrieved document snippets from a textbook, decide if these documents can help answer the query.
 
 User query: {query}
 
@@ -54,8 +54,8 @@ Retrieved documents:
 {docs}
 
 Answer ONLY "Yes" or "No".
-- Say "Yes" if the documents discuss the concepts or topics in the query (even if the answer is spread across snippets, or if they cover "A" and "B" separately when the query asks for "differences between A and B").
-- Say "No" only if the documents are clearly off-topic or useless (e.g. about something unrelated).
+- Say "Yes" if the documents discuss the concepts, algorithms, or topics in the query (even if the answer is spread across snippets, or only partly addressed, or they cover "A" and "B" separately when the query asks for "differences between A and B"). Partial relevance is enough.
+- Say "No" only if the documents are clearly off-topic or have nothing to do with the query (e.g. completely unrelated subject).
 
 Your answer:"""
 
@@ -180,6 +180,12 @@ User message: {query}
 
 Extracted part (about course material only):"""
 
+EXTRACT_SEARCH_PHRASE_PROMPT = """From this question about course material, extract a short phrase (2–8 words) that would work as a search query for a textbook index. Use the main concept or algorithm name (e.g. "k-nearest neighbors", "logistic regression", "bias variance tradeoff"). Output ONLY the phrase, nothing else.
+
+Question: {query}
+
+Search phrase:"""
+
 
 class Query_Agent:
     def __init__(self, pinecone_index, openai_client, embeddings=None) -> None:
@@ -210,6 +216,23 @@ class Query_Agent:
         except Exception:
             pass
         return query
+
+    def get_search_phrase(self, query):
+        """Extract a short search phrase from the query for retry retrieval. Returns stripped string or None."""
+        if not (query or "").strip():
+            return None
+        prompt = EXTRACT_SEARCH_PHRASE_PROMPT.format(query=query.strip())
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=40,
+                temperature=0,
+            )
+            out = (resp.choices[0].message.content or "").strip()
+            return out if out and len(out) < 100 else None
+        except Exception:
+            return None
 
     def get_comparison_phrases(self, query):
         """If the query asks to compare two things, return (phrase1, phrase2) for dual retrieval; else None."""
@@ -314,6 +337,28 @@ class Answering_Agent:
         except Exception:
             return "Sorry, I could not generate a response."
 
+    def generate_response_stream(self, query, docs, conv_history, k=5):
+        """Yields text chunks for streaming display. Only yields non-empty strings."""
+        doc_texts = [d.page_content if hasattr(d, "page_content") else str(d) for d in (docs or [])[:k]]
+        context = "\n\n".join(doc_texts) if doc_texts else "(No relevant documents)"
+        history = "\n".join([f"User: {u}\nAssistant: {a}" for u, a in (conv_history or [])[-4:]])
+        prompt = self.prompt_template.format(context=context, history=history or "(none)", query=query)
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=500,
+                temperature=0.3,
+                stream=True,
+            )
+            for chunk in stream:
+                if chunk.choices and getattr(chunk.choices[0].delta, "content", None):
+                    part = chunk.choices[0].delta.content
+                    if part:
+                        yield part
+        except Exception:
+            yield "Sorry, I could not generate a response."
+
 
 # ----- Head_Agent -----
 REFUSE_OBNOXIOUS = "I won't respond to that. Please ask in a polite and respectful way."
@@ -382,9 +427,9 @@ class Head_Agent:
         self.relevant_agent = Relevant_Documents_Agent(self.client)
         self.answering_agent = Answering_Agent(self.client)
 
-    def respond(self, user_message, conv_history=None):
-        """Returns (response_text, agent_path, source_passages).
-        source_passages is a list of strings (PDF chunks used for the answer), or None if no RAG was used (e.g. refused).
+    def respond(self, user_message, conv_history=None, stream=False):
+        """Returns (response_text_or_stream, agent_path, source_passages).
+        If stream=True and we generate an answer, first element is a generator; else the full string.
         """
         conv_history = conv_history or []
         agent_path = []
@@ -462,15 +507,27 @@ class Head_Agent:
             return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path), None
 
         rel = self.relevant_agent.get_relevance({"query": effective_query, "docs": docs})
+        # Fallback: when relevance says No, ask LLM for a short search phrase and retry retrieval (works for any topic)
+        if rel != "Yes" and effective_query.strip():
+            key_phrase = self.query_agent.get_search_phrase(effective_query)
+            if key_phrase:
+                docs2 = self.query_agent.query_vector_store(key_phrase, k=8)
+                if docs2:
+                    rel2 = self.relevant_agent.get_relevance({"query": effective_query, "docs": docs2})
+                    if rel2 == "Yes":
+                        docs, rel = docs2, "Yes"
         if rel != "Yes":
             agent_path.append("Relevant_Documents_Agent")
             return REFUSE_NO_RELEVANT_DOCS, " -> ".join(agent_path), None
 
         agent_path.append("Relevant_Documents_Agent")
         agent_path.append("Answering_Agent")
-        answer = self.answering_agent.generate_response(effective_query, docs, conv_history, k=8)
         source_passages = [d.page_content for d in docs]
-        return answer, " -> ".join(agent_path), source_passages
+        path_str = " -> ".join(agent_path)
+        if stream:
+            return self.answering_agent.generate_response_stream(effective_query, docs, conv_history, k=8), path_str, source_passages
+        answer = self.answering_agent.generate_response(effective_query, docs, conv_history, k=8)
+        return answer, path_str, source_passages
 
     def main_loop(self):
         self.setup_sub_agents()
